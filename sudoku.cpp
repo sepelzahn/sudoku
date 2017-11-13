@@ -19,7 +19,8 @@ int dbg_sumup   = (1<<3);
 int dbg_twins   = (1<<4);
 int dbg_update  = (1<<5);
 int dbg_check   = (1<<6);
-int dbg = dbg_round ; //| dbg_twins | dbg_update;
+int dbg_point   = (1<<7);
+int dbg = dbg_round ; // | dbg_point | dbg_twins | dbg_update;
 
 enum Area {
 	ROW,
@@ -35,7 +36,7 @@ enum SudokuIterator {
 
 bool checkForTwoTimesSameTwoPossibleValuesConstraint(int, int);
 bool checkArea(int pos, Area area, bool (*)(int, int, int, int, int, Area, bool, bool*));
-bool updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(int, int);
+bool updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(int, int, bool);
 
 string areaType[] = {"row", "col", "sqr"};
 
@@ -111,6 +112,17 @@ string possVals(int flags){
 	return numList;
 }
 
+bool posInArea(int pos, int areaPos, Area area){
+	int pStart, pEnd, pInc;
+	pStart = getAreaIterator((Area) area, areaPos, SudokuIterator::BEGIN);
+	pEnd   = getAreaIterator((Area) area, areaPos, SudokuIterator::END);
+	pInc   = getAreaIterator((Area) area, areaPos, SudokuIterator::INCREMENT);
+	for( int p = pStart ; p < pEnd ; p += ((pInc>0)?pInc:((p%9==pStart%9+2)?7:1)) ){
+		if( pos == p ) return true;	
+	}
+	return false;
+}
+
 bool sumUpPossibleValuesInArea( int p, int pos, int pStart, int pEnd, int pInc, Area area, bool reevaluate, bool* doneEnough){
 	if( !x[p] && possibleValues[p] ){
 		for( int i = 0; i < 9; i++){
@@ -160,11 +172,11 @@ bool checkSingles(int pos, Area area, bool reevaluate){
 				continue;
 			} else {
 				int possibleValuesBefore = possibleValues[posOfSingleOccuranceOfValue[i]];
+				if( x[posOfSingleOccuranceOfValue[i]] != i+1 ) reevaluate = true;
 				x[posOfSingleOccuranceOfValue[i]] = i+1;
 				possibleValues[posOfSingleOccuranceOfValue[i]] = 0;
 				twoPossibilities[posOfSingleOccuranceOfValue[i]] = 0;
-				updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(posOfSingleOccuranceOfValue[i], x[posOfSingleOccuranceOfValue[i]]);
-				reevaluate = true;
+				reevaluate = updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(posOfSingleOccuranceOfValue[i], x[posOfSingleOccuranceOfValue[i]], reevaluate);
 				if(dbg & dbg_singles) cout << "checkSingles(" << pos << " (" << (pos)%9+1 << "/" << (pos)/9+1 << "), " << areaType[area] << ", " << boolalpha << reevaluate << "): found single occurance in area for value "<< i+1 << " in cell " << posOfSingleOccuranceOfValue[i] << " (" << (posOfSingleOccuranceOfValue[i])%9+1 << "/" << (posOfSingleOccuranceOfValue[i])/9+1 << "): reduce from possible values of " << possVals(possibleValuesBefore) << " to " << i+1 << endl;
 			}
 		}
@@ -193,6 +205,7 @@ bool reducePossibleValues( int p, int pos, int pStart, int pEnd, int pInc, Area 
 
 		if( impossibleCount > 7 ){
 			if( theOnlyOneValue > 0 ){
+				if( x[pos] != theOnlyOneValue ) reevaluate = true;
 				x[pos] = theOnlyOneValue;
 				possibleValues[pos] = 0;
 				if(dbg & dbg_reduce) cerr << "solved by deleting value " << x[p] << " in " << areaType[area] << "-area in cell " << pos << " (" << (pos)%9+1 << "/" << (pos)/9+1 << ") = " << x[pos] << ", because cell " << p << " (" << (p)%9+1 << "/" << (p)/9+1 << ") claims the value. Possible values of cell " << pos << " are now " << possVals(possibleValues[pos]) << endl;
@@ -235,7 +248,7 @@ bool checkForTwoTimesSameTwoPossibleValuesConstraint(int pos, int posInSameArea)
 			x[posInSameArea] = theOnlyOneValue;
 			possibleValues[posInSameArea] = 0;
 			twoPossibilities[posInSameArea] = 0;
-			updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(posInSameArea, x[posInSameArea]);
+			reevaluate = updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(posInSameArea, x[posInSameArea], reevaluate);
 		} else {
 			if( before != possibleValues[posInSameArea] ) reevaluate = true;
 		}
@@ -254,7 +267,7 @@ bool areThereTwoSameTwoPossibleValues( int p, int pos, int pStart, int pEnd, int
 	return reevaluate;
 }
 
-bool updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(int solvedCellPos, int solvedValue){
+bool updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(int solvedCellPos, int solvedValue, bool reevaluate){
 	int pStart, pEnd, pInc;
 	for( int area = Area::ROW; area <= Area::SQR; area++ ){
 		pStart = getAreaIterator((Area) area, solvedCellPos, SudokuIterator::BEGIN);
@@ -269,10 +282,35 @@ bool updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell(int solvedCell
 					possibleValues[p] &= ~(1<<(solvedValue-1));
 					twoPossibilities[p] = 0;
 					if(dbg & dbg_update) cout << "updatePossibleValuesInOtherCellsBelongingToAreasOfSolvedCell: reduced solvedValue " << solvedValue << " from possibleValues[" << p << "] = '" << possVals(possibleValuesBefore) << "', getting new list '" << possVals(possibleValues[p]) << "', because the value of the solved cell " << solvedCellPos << " (" << (solvedCellPos)%9+1 << "/" << (solvedCellPos)/9+1 << ") = " << solvedValue << " requires this change in the possible values of cell " << p << " (" << (p)%9+1 << "/" << (p)/9+1 << ")" << " in " << areaType[area] << "-area" << endl;
+					if( possibleValuesBefore != possibleValues[p] ) reevaluate = true;
 				}
 			}
 		}
 	}
+	return reevaluate;
+}
+
+bool updatePossibleValuesInAreaIntersectingWithBlock(Area area, int solvedCellPos, int solvedValue, bool reevaluate){
+	int pStart, pEnd, pInc;
+
+	pStart = getAreaIterator((Area) area, solvedCellPos, SudokuIterator::BEGIN);
+	pEnd   = getAreaIterator((Area) area, solvedCellPos, SudokuIterator::END);
+	pInc   = getAreaIterator((Area) area, solvedCellPos, SudokuIterator::INCREMENT);
+	for( int p = pStart ; p < pEnd ; p += ((pInc>0)?pInc:((p%9==pStart%9+2)?7:1)) ){
+		if( !posInArea(p, solvedCellPos, Area::SQR) && possibleValues[p] ){
+			if( possibleValues[p] == (1<<(solvedValue-1)) ){
+				if(dbg & dbg_update) cout << "updatePossibleValuesInAreaIntersectingWithBlock: cannot reduce solvedValue " << solvedValue << " from possibleValues[" << p << "] = '" << possVals(possibleValues[p]) << "', because the value of the solved cell " << solvedCellPos << " (" << (solvedCellPos)%9+1 << "/" << (solvedCellPos)/9+1 << ") = " << solvedValue << " colides with the single value '" << possVals(possibleValues[p]) << "' left in the list of possible values of cell " << p << " (" << (p)%9+1 << "/" << (p)/9+1 << ")" << " in " << areaType[area] << "-area" << endl;
+			} else {
+				int possibleValuesBefore = possibleValues[p];
+				possibleValues[p] &= ~(1<<(solvedValue-1));
+				twoPossibilities[p] = 0;
+				if(dbg & dbg_update) cout << "updatePossibleValuesInAreaIntersectingWithBlock: reduced solvedValue " << solvedValue << " from possibleValues[" << p << "] = '" << possVals(possibleValuesBefore) << "', getting new list '" << possVals(possibleValues[p]) << "', because the value of the solved cell " << solvedCellPos << " (" << (solvedCellPos)%9+1 << "/" << (solvedCellPos)/9+1 << ") = " << solvedValue << " requires this change in the possible values of cell " << p << " (" << (p)%9+1 << "/" << (p)/9+1 << ")" << " in " << areaType[area] << "-area" << endl;
+				if( possibleValuesBefore != possibleValues[p] ) reevaluate = true;
+			}
+		}
+	}
+	if(dbg & dbg_update) cout << "updatePossibleValuesInAreaIntersectingWithBlock: returns " << boolalpha << reevaluate << endl;
+	return reevaluate;
 }
 
 bool checkArea(int pos, Area area, bool (*fP)(int, int, int, int, int, Area, bool, bool*)){
@@ -289,6 +327,64 @@ bool checkArea(int pos, Area area, bool (*fP)(int, int, int, int, int, Area, boo
 		reevaluate = fP( p, pos, pStart, pEnd, pInc, area, reevaluate, &doneEnough);
 		if( doneEnough ){
 			break;
+		}
+	}
+	return reevaluate;
+}
+
+bool reducePossiblitiesInRowsAndColsIntersectingWithBlockHavingPointingPossiblities(int pos, bool reevaluate){
+	int pStart, pEnd, pInc;
+
+	pStart = getAreaIterator(Area::SQR, pos, SudokuIterator::BEGIN);
+	pEnd   = getAreaIterator(Area::SQR, pos, SudokuIterator::END);
+	pInc   = getAreaIterator(Area::SQR, pos, SudokuIterator::INCREMENT);
+	if(dbg & dbg_point) cout << "reducePossPointing: pos=" << pos << ", area=" << areaType[Area::SQR] << ", pStart=" << pStart << ", pEnd=" << pEnd << ", pInc=" << pInc << " (" << (pos)%9+1 << "/" << (pos)/9+1 << ")" << endl;
+	
+	for(int digit = 1; digit < 10 ; digit++){
+		int countInRows[3];
+		int countInCols[3];
+		for( int i = 0; i < 3; i++){
+			countInRows[i] = 0;
+			countInCols[i] = 0;
+		}
+		for( int p = pStart ; p < pEnd ; p += ((p%9==pStart%9+2)?7:1) ){
+			if( possibleValues[p] & (1<<(digit-1)) ){
+				countInRows[(p-pStart)/9] += 1;	
+				countInCols[(p-pStart)%3] += 1;	
+			}
+		}	
+		int foundInRows = 0;
+		int foundInRowsMult = 0;
+		int foundInCols = 0;
+		int foundInColsMult = 0;
+		int foundInRow = 0;
+		int foundInCol = 0;
+		for( int i = 0; i < 3; i++){
+			if( countInRows[i] > 0){
+				if( countInRows[i] > 1){
+					foundInRowsMult++;
+					foundInRow = i;
+				} else {
+					foundInRows++;	
+				}
+			}
+			if( countInCols[i] > 0){
+				if( countInCols[i] > 1){
+					foundInColsMult++;
+					foundInCol = i;
+				} else {
+					foundInCols++;	
+				}
+			}
+		}
+		if( foundInRows == 0 && foundInRowsMult == 1 ){
+			if(dbg & dbg_point) cout << "reducePossPointing: digit " << digit << " is pointing at a row, reevaluate = " << boolalpha << reevaluate << endl;
+			reevaluate = updatePossibleValuesInAreaIntersectingWithBlock(Area::ROW, pos+(foundInRow*9), digit, reevaluate);
+		}
+			
+		if( foundInCols == 0 && foundInColsMult == 1 ){
+			if(dbg & dbg_point) cout << "reducePossPointing: digit " << digit << " is pointing at a column, reevaluate = " << boolalpha << reevaluate << endl;
+			reevaluate = updatePossibleValuesInAreaIntersectingWithBlock(Area::COL, pos+foundInCol, digit, reevaluate);
 		}
 	}
 	return reevaluate;
@@ -419,6 +515,11 @@ int main(int argc, char**argv){
 		}
 		for( int pos = 0; pos < vsz; pos+=((pos%9==6)?21:3) ){
 			reevaluate = checkSingles(pos, Area::SQR, reevaluate)?true:reevaluate;
+		}
+		if( reevaluate ) continue;
+
+		for( int pos = 0; pos < vsz; pos+=((pos%9==6)?21:3) ){
+			reevaluate = reducePossiblitiesInRowsAndColsIntersectingWithBlockHavingPointingPossiblities(pos, reevaluate);
 		}
 	}
 	return 0;
