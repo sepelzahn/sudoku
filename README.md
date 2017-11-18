@@ -32,7 +32,8 @@ The format of data in this file is:
   
   - the byte position in the file corresponds to the cell position in the 9x9 Sudoku grid:
   
-    ```byte  1 -> line 1, col 1
+    ```
+    byte  1 -> line 1, col 1
     
     byte  2 -> line 1, col 2
     
@@ -42,7 +43,8 @@ The format of data in this file is:
     
     [...]
     
-    byte 80 -> line 9, col 9```
+    byte 80 -> line 9, col 9
+    ```
     
     - or as algorithm (zero based indices and fileposition):
   
@@ -51,7 +53,6 @@ The format of data in this file is:
     - or prosaic:
   
     ```The position of one character in the file correlates to the position in Sudoku matrix by following rule:
-    
     Starting at top left position of 9x9 Sudoku matrix, filling a row with the next characters
     starting with first char of file proceeding with next row of matrix and so on.```
 
