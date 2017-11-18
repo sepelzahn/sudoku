@@ -36,11 +36,11 @@ The format of data in this file is:
     
     byte  2 -> line 1, col 2
     
-    \[...\]
+    [...]
     
     byte 10 -> line 2, col 1
     
-    \[...\]
+    [...]
     
     byte 80 -> line 9, col 9
     
