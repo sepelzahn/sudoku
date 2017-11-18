@@ -296,7 +296,7 @@ bool checkArea(int pos, Area area, bool (*fP)(int, int, int, int, int, Area, boo
 
 int main(int argc, char**argv){
 
-	char linebuf[vsz];
+	char linebuf[vsz+1];
 	int xfound;
 	int round = 0;
 
@@ -310,10 +310,10 @@ int main(int argc, char**argv){
 
 
 	cout << bytesRead << " bytes read: " << linebuf << endl;
-	for( int pos = 0; pos < bytesRead+1; pos++ ){
-		if( linebuf[pos] > '9' || linebuf[pos] < '1'){
+	for( int pos = 0; pos < vsz; pos++ ){
+		if( pos >= bytesRead || linebuf[pos] > '9' || linebuf[pos] < '1'){
 			x[pos] = 0;
-			possibleValues[pos] = 511 ; // 111111111b: start with all values [1..9] possible
+			possibleValues[pos] = 511 ; // 0b111111111: start with all values [1..9] possible
 		} else {
 			x[pos] = linebuf[pos] - '0';
 			possibleValues[pos] &= ~(1<<(x[pos]-1));
