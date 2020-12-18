@@ -1,10 +1,17 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <vector>
 #include <string>
+
+#include <ctype.h>
+#include <stdlib.h>
+#include <unistd.h>
 using namespace std;
 
-const int vsz = 81;
+const int rows = 9;
+const int cols = 9;
+const int vsz = rows * cols;
 int x[vsz];
 int beforeRoundState[vsz];
 int possibleValues[vsz];
@@ -295,21 +302,70 @@ bool checkArea(int pos, Area area, bool (*fP)(int, int, int, int, int, Area, boo
 }
 
 int main(int argc, char**argv){
-
+	ifstream sudokuPlan;
 	char linebuf[vsz+1];
 	int xfound;
 	int round = 0;
 
 	int bytesRead = 0;
+	int bytesReadAgain = 0;
 	int found = 0;
 	bool reevaluate = true;
 	bool stop = false;
+	int opt;
+
+
+	while ((opt = getopt(argc, argv, "d:")) != EOF){
+        	switch(opt){
+			case 'd': 
+				dbg = atoi(optarg);
+				break;
+			case '?':
+				cout << "usuage " << argv[0] << " -d <debuglevel>" << endl;
+			default:
+				exit(1);
+        	}
+	}
+	if( optind < argc ){
+		if( sudokuPlan = ifstream(argv[optind]) ){
+			cin.rdbuf(sudokuPlan.rdbuf());
+		} else {
+			cout << "Error loading file " << argv[optind] << endl;
+			exit(1);
+		}
+	} else {
+		cout << "Reading Sudoku plan from stdin (abort with Ctrl c): type in " << vsz << " digits from 0..9 in one or more lines to make up a " << rows << "x" << cols << " cells Sudoku plan, where 0 (or blank) marks an empty cell: " << endl;
+	}
+
+	for( int i = 0; i < vsz+1 ; i++) linebuf[i] = '\0';
 
 	cin.get(linebuf, vsz+1);
 	bytesRead = cin.gcount();
+	cout << boolalpha;
+	cout << "\n\nRead a line with " << bytesRead << " bytes: " << linebuf << endl;
+	while( bytesRead < vsz ){
+		if( !cin.good() ){
+			cout << "\nios state: " << "good = " << cin.good() << ", eof = " << cin.eof() << ", fail = " << cin.fail() << ", bad = " << cin.bad() << endl;
+			if( cin.eof() ) break;
+			if( cin.bad() ) exit(1);
+			cin.clear();  // cin.fail() == empty line
+		}
+		cin.ignore(1,'\n');
+		if( !cin.good() ) break;
+		cout << "Enter next line at pos " << bytesRead << ", still missing " << vsz - bytesRead << " bytes (good = " << cin.good() << "): ";
+		cin.get(linebuf + bytesRead, vsz+1 - bytesRead);
+		if( !cin.good() ){
+			cout << "\nios state: " << "good = " << cin.good() << ", eof = " << cin.eof() << ", fail = " << cin.fail() << ", bad = " << cin.bad() << endl;
+			if( cin.eof() ) break;
+			if( cin.bad() ) exit(1);
+			cin.clear();  // cin.fail() == empty line
+		}
+		if( !cin.good() ) break;
+		bytesReadAgain = cin.gcount();
+		cout << "\nRead a line with " << bytesReadAgain << " bytes: " << linebuf+bytesRead << endl;
+		bytesRead += bytesReadAgain;
+	}
 
-
-	cout << bytesRead << " bytes read: " << linebuf << endl;
 	for( int pos = 0; pos < vsz; pos++ ){
 		if( pos >= bytesRead || linebuf[pos] > '9' || linebuf[pos] < '1'){
 			x[pos] = 0;
