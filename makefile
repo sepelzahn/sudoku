@@ -3,7 +3,7 @@ target = sudoku
 all: $(target)
 
 CXX = gcc
-CXXFLAGS = -std=c++11
+CXXFLAGS = -std=c++11 -g
 LDLIBS = -lstdc++
 
 $(target): $(target).cpp
